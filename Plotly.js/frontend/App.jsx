@@ -17,7 +17,6 @@ const SeismicViewer = () => {
     sample: 0
   });
   const [sliceData, setSliceData] = useState({});
-  const [compassRotation, setCompassRotation] = useState({ il: 0, xl: 90, s: 45 });
   const [isLoadingSlice, setIsLoadingSlice] = useState(false);
   const plotDiv = useRef(null);
   const debounceTimerRef = useRef(null);
@@ -118,16 +117,13 @@ const SeismicViewer = () => {
   };
 
   const handleSliceChange = (sliceType, index) => {
-  
     const newIndices = { ...sliceIndices, [sliceType]: index };
     setSliceIndices(newIndices);
 
- 
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    
     debounceTimerRef.current = setTimeout(() => {
       loadSliceData(newIndices);
     }, 150);
@@ -140,129 +136,312 @@ const SeismicViewer = () => {
     }));
   };
 
-  
-  const updateCompass = useCallback((camera) => {
-    if (!camera || !camera.eye) return;
+const create3DVisualization = useCallback(() => {
+  if (!cubeInfo || !sliceData || Object.keys(sliceData).length === 0) {
+    return;
+  }
 
-    const eye = camera.eye;
-    
+  const traces = [];
+  const ampRange = getAmplitudeRange();
+
+  // Add cube outline
+  const cubeOutlineTraces = createCubeOutline();
+  traces.push(...cubeOutlineTraces);
   
-    const azimuth = Math.atan2(eye.y, eye.x) * (180 / Math.PI);
-    
-   
-    const ilAngle = azimuth;
-    const xlAngle = azimuth + 90;
-    
-  
-    const elevation = Math.atan2(eye.z, Math.sqrt(eye.x * eye.x + eye.y * eye.y)) * (180 / Math.PI);
-    
-    setCompassRotation({
-      il: ilAngle,
-      xl: xlAngle,
-      s: elevation
+  // Add North direction arrow (outside the cube)
+  const directionArrows = createDirectionArrows();
+  traces.push(...directionArrows);
+
+  // Add slices
+  if (sliceVisibility.inline && sliceData.inline) {
+    const inlineTrace = createInlineSlice(ampRange);
+    if (inlineTrace) traces.push(inlineTrace);
+  }
+
+  if (sliceVisibility.xline && sliceData.xline) {
+    const xlineTrace = createXlineSlice(ampRange);
+    if (xlineTrace) traces.push(xlineTrace);
+  }
+
+  if (sliceVisibility.sample && sliceData.sample) {
+    const sampleTrace = createSampleSlice(ampRange);
+    if (sampleTrace) traces.push(sampleTrace);
+  }
+
+  const layout = {
+    title: {
+      text: `<b>3D Seismic Cube Visualization</b><br>` +
+        `<sub>INLINE: ${cubeInfo.inline_range.min + sliceIndices.inline} | ` +
+        `XLINE: ${cubeInfo.xline_range.min + sliceIndices.xline} | ` +
+        `Sample: ${(cubeInfo.sample_range.min + sliceIndices.sample * (cubeInfo.sample_range.max - cubeInfo.sample_range.min) / (cubeInfo.sample_range.count - 1)).toFixed(1)}</sub>`,
+      x: 0.5,
+      font: { size: 16 }
+    },
+    scene: {
+      xaxis: {
+        title: 'INLINE',
+        backgroundcolor: "rgba(240,240,240,0.1)",
+        gridcolor: "rgba(150,150,150,0.3)",
+        showbackground: true,
+        titlefont: { size: 14 },
+        range: [
+          cubeInfo.inline_range.min - (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.05,
+          cubeInfo.inline_range.max + (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.20
+        ]
+      },
+      yaxis: {
+        title: 'XLINE (↑ North)',
+        backgroundcolor: "rgba(240,240,240,0.1)",
+        gridcolor: "rgba(150,150,150,0.3)",
+        showbackground: true,
+        titlefont: { size: 14 },
+        range: [
+          cubeInfo.xline_range.min - (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.05,
+          cubeInfo.xline_range.max + (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.15
+        ]
+      },
+      zaxis: {
+        title: 'Sample (Time/Depth)',
+        backgroundcolor: "rgba(240,240,240,0.1)",
+        gridcolor: "rgba(150,150,150,0.3)",
+        showbackground: true,
+        titlefont: { size: 14 },
+        range: [cubeInfo.sample_range.max, cubeInfo.sample_range.min],
+        autorange: 'reversed'
+      },
+      bgcolor: "rgba(255,255,255,0.1)",
+      camera: {
+        eye: { x: 1.6, y: 1.6, z: 1.4 },
+        center: { x: 0, y: 0, z: 0 }
+      },
+      aspectmode: 'manual',
+      aspectratio: {
+        x: 1.1,
+        y: 1.1,
+        z: 0.8
+      }
+    },
+    width: 1000,
+    height: 700,
+    margin: { r: 50, b: 10, l: 10, t: 60 },
+    dragmode: 'orbit',
+    showlegend: false
+  };
+
+  if (plotDiv.current) {
+    Plotly.newPlot(plotDiv.current, traces, layout, {
+      displayModeBar: true,
+      modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d'],
+      responsive: true
     });
-  }, []);
+  }
+}, [cubeInfo, sliceData, sliceVisibility, sliceIndices]);
 
-  const create3DVisualization = useCallback(() => {
-    if (!cubeInfo || !sliceData || Object.keys(sliceData).length === 0) {
-      return;
+const createDirectionArrows = () => {
+    console.log("=== CREATING DIRECTION ARROWS ===");
+    
+    if (!cubeInfo) {
+      console.log("No cubeInfo available");
+      return [];
     }
+    
+    if (!cubeInfo.orientation) {
+      console.log("No orientation data available");
+      return [];
+    }
+
+    const { inline_range, xline_range, sample_range, orientation } = cubeInfo;
+
+    // Get orientation info from backend
+    const xlineVector = orientation.xline_vector || [0, 1];
+    const inlineVector = orientation.inline_vector || [1, 0];
+    const hasCoordinates = orientation.has_coordinates;
+    const azimuthXline = orientation.azimuth_xline || 0;
+    const azimuthInline = orientation.azimuth_inline || 90;
+
+    console.log("=== ORIENTATION DEBUG ===");
+    console.log("Inline Vector (real-world):", inlineVector);
+    console.log("Xline Vector (real-world):", xlineVector);
+    console.log("Inline Azimuth:", azimuthInline, "°");
+    console.log("Xline Azimuth:", azimuthXline, "°");
+    console.log("Has Coordinates:", hasCoordinates);
+
+    // Calculate dimensions
+    const xLength = inline_range.max - inline_range.min;
+    const yLength = xline_range.max - xline_range.min;
+    
+    // Position: Upper right corner - OUTSIDE the cube
+    const arrowBaseX = inline_range.max + xLength * 0.12;
+    const arrowBaseY = xline_range.max + yLength * 0.08;
+    const arrowZ = sample_range.min - (sample_range.max - sample_range.min) * 0.05;
+
+    // Arrow styling
+    const arrowLen = Math.min(xLength, yLength) * 0.20;
+    const arrowColor = hasCoordinates ? "#FF0000" : "#FFA500";
+    const arrowWidth = 10;
 
     const traces = [];
-    const ampRange = getAmplitudeRange();
 
-  
-    const cubeOutlineTraces = createCubeOutline();
-    traces.push(...cubeOutlineTraces);
-
-   
-    if (sliceVisibility.inline && sliceData.inline) {
-      const inlineTrace = createInlineSlice(ampRange);
-      if (inlineTrace) traces.push(inlineTrace);
+    // Transform North direction to plot coordinates
+    const north_real = [0, 1]; // North in real-world coords
+    
+    // Solve: North_realworld = a * inlineVector + b * xlineVector
+    const det = inlineVector[0] * xlineVector[1] - inlineVector[1] * xlineVector[0];
+    
+    console.log("Determinant:", det);
+    
+    if (Math.abs(det) < 0.0001) {
+      console.warn("Vectors are parallel or nearly parallel, using default orientation");
+      return createDefaultArrow(arrowBaseX, arrowBaseY, arrowZ, arrowLen, arrowColor, arrowWidth);
     }
+    
+    // Solve for a and b using Cramer's rule
+    const a = (north_real[0] * xlineVector[1] - north_real[1] * xlineVector[0]) / det;
+    const b = (inlineVector[0] * north_real[1] - inlineVector[1] * north_real[0]) / det;
+    
+    console.log("North decomposition: a =", a.toFixed(4), "b =", b.toFixed(4));
+    console.log("This means: North = " + a.toFixed(4) + " × Inline + " + b.toFixed(4) + " × Xline");
+    
+    // Normalize the plot direction
+    const northPlotLength = Math.sqrt(a*a + b*b);
+    const northPlotX = a / northPlotLength;
+    const northPlotY = b / northPlotLength;
+    
+    console.log("Normalized plot North: [", northPlotX.toFixed(4), ",", northPlotY.toFixed(4), "]");
+    console.log("=== END ORIENTATION DEBUG ===");
+    
+    // Calculate arrow tip position in plot coordinates
+    const arrowTipX = arrowBaseX + northPlotX * arrowLen;
+    const arrowTipY = arrowBaseY + northPlotY * arrowLen;
 
-    if (sliceVisibility.xline && sliceData.xline) {
-      const xlineTrace = createXlineSlice(ampRange);
-      if (xlineTrace) traces.push(xlineTrace);
-    }
-
-    if (sliceVisibility.sample && sliceData.sample) {
-      const sampleTrace = createSampleSlice(ampRange);
-      if (sampleTrace) traces.push(sampleTrace);
-    }
-
-    const layout = {
-      title: {
-        text: `<b>3D Seismic Cube Visualization</b><br>` +
-          `<sub>INLINE: ${cubeInfo.inline_range.min + sliceIndices.inline} | ` +
-          `XLINE: ${cubeInfo.xline_range.min + sliceIndices.xline} | ` +
-          `Sample: ${(cubeInfo.sample_range.min + sliceIndices.sample * (cubeInfo.sample_range.max - cubeInfo.sample_range.min) / (cubeInfo.sample_range.count - 1)).toFixed(1)}</sub>`,
-        x: 0.5,
-        font: { size: 16 }
+    // North Arrow shaft
+    traces.push({
+      type: "scatter3d",
+      mode: "lines+text",
+      x: [arrowBaseX, arrowTipX, arrowTipX],
+      y: [arrowBaseY, arrowTipY, arrowTipY],
+      z: [arrowZ, arrowZ, arrowZ],
+      line: { color: arrowColor, width: arrowWidth },
+      text: ["", "", "N"],
+      textposition: "top center",
+      textfont: { 
+        size: 26, 
+        color: arrowColor, 
+        family: "Arial Black, sans-serif",
+        weight: "bold"
       },
-      scene: {
-        xaxis: {
-          title: 'INLINE',
-          backgroundcolor: "rgba(240,240,240,0.1)",
-          gridcolor: "rgba(150,150,150,0.3)",
-          showbackground: true,
-          titlefont: { size: 14 },
-          range: [cubeInfo.inline_range.min - 5, cubeInfo.inline_range.max + 5]
-        },
-        yaxis: {
-          title: 'XLINE',
-          backgroundcolor: "rgba(240,240,240,0.1)",
-          gridcolor: "rgba(150,150,150,0.3)",
-          showbackground: true,
-          titlefont: { size: 14 },
-          range: [cubeInfo.xline_range.min - 5, cubeInfo.xline_range.max + 5]
-        },
-        zaxis: {
-          title: 'Sample (Time/Depth)',
-          backgroundcolor: "rgba(240,240,240,0.1)",
-          gridcolor: "rgba(150,150,150,0.3)",
-          showbackground: true,
-          titlefont: { size: 14 },
-          range: [cubeInfo.sample_range.max, cubeInfo.sample_range.min], 
-          autorange: 'reversed'
-        },
-        bgcolor: "rgba(255,255,255,0.1)",
-        camera: {
-          eye: { x: 1.8, y: 1.8, z: 1.5 },
-          center: { x: 0, y: 0, z: 0 }
-        },
-        aspectmode: 'manual',
-        aspectratio: {
-          x: 1,
-          y: 1,
-          z: 0.8
-        }
-      },
-      width: 1000,
-      height: 700,
-      margin: { r: 80, b: 10, l: 10, t: 60 },
-      dragmode: 'orbit',
-      showlegend: false
-    };
+      showlegend: false,
+      hoverinfo: "text",
+      hovertext: `<b>North Direction</b><br>` +
+                 `Azimuth: ${azimuthXline.toFixed(1)}°<br>` + 
+                 `Plot vector: [${northPlotX.toFixed(3)}, ${northPlotY.toFixed(3)}]<br>` +
+                 `Real-world Inline: [${inlineVector[0].toFixed(4)}, ${inlineVector[1].toFixed(4)}]<br>` +
+                 `Real-world Xline: [${xlineVector[0].toFixed(4)}, ${xlineVector[1].toFixed(4)}]<br>` +
+                 `Source: ${hasCoordinates ? 'CDP Coordinates' : 'Assumed Grid'}`,
+      name: "North"
+    });
 
-    if (plotDiv.current) {
-      Plotly.newPlot(plotDiv.current, traces, layout, {
-        displayModeBar: true,
-        modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d'],
-        responsive: true
-      });
+    // Arrow head (larger and more visible)
+    const headSize = arrowLen * 0.25;
+    const perpX = -northPlotY;
+    const perpY = northPlotX;
+    
+    const leftWingX = arrowTipX - northPlotX * headSize + perpX * headSize * 0.35;
+    const leftWingY = arrowTipY - northPlotY * headSize + perpY * headSize * 0.35;
+    
+    traces.push({
+      type: "scatter3d",
+      mode: "lines",
+      x: [leftWingX, arrowTipX],
+      y: [leftWingY, arrowTipY],
+      z: [arrowZ, arrowZ],
+      line: { color: arrowColor, width: arrowWidth },
+      showlegend: false,
+      hoverinfo: "skip"
+    });
 
-     
-      plotDiv.current.on('plotly_relayout', (eventData) => {
-        if (eventData['scene.camera']) {
-          updateCompass(eventData['scene.camera']);
-        }
-      });
+    const rightWingX = arrowTipX - northPlotX * headSize - perpX * headSize * 0.35;
+    const rightWingY = arrowTipY - northPlotY * headSize - perpY * headSize * 0.35;
+    
+    traces.push({
+      type: "scatter3d",
+      mode: "lines",
+      x: [rightWingX, arrowTipX],
+      y: [rightWingY, arrowTipY],
+      z: [arrowZ, arrowZ],
+      line: { color: arrowColor, width: arrowWidth },
+      showlegend: false,
+      hoverinfo: "skip"
+    });
 
-     
-      updateCompass(layout.scene.camera);
+    // Compass rose circle (larger)
+    const circlePoints = 48;
+    const circleRadius = arrowLen * 0.75;
+    const circleX = [];
+    const circleY = [];
+    const circleZ = [];
+    
+    for (let i = 0; i <= circlePoints; i++) {
+      const angle = (i / circlePoints) * 2 * Math.PI;
+      circleX.push(arrowBaseX + Math.cos(angle) * circleRadius);
+      circleY.push(arrowBaseY + Math.sin(angle) * circleRadius);
+      circleZ.push(arrowZ);
     }
-  }, [cubeInfo, sliceData, sliceVisibility, sliceIndices, updateCompass]);
+    
+    traces.push({
+      type: "scatter3d",
+      mode: "lines",
+      x: circleX,
+      y: circleY,
+      z: circleZ,
+      line: { color: arrowColor, width: 3 },
+      showlegend: false,
+      hoverinfo: "skip",
+      opacity: 0.6
+    });
+
+    // Azimuth text (larger and below arrow)
+    traces.push({
+      type: "scatter3d",
+      mode: "text",
+      x: [arrowBaseX],
+      y: [arrowBaseY - arrowLen * 0.9],
+      z: [arrowZ],
+      text: [`${azimuthXline.toFixed(1)}°`],
+      textfont: { size: 14, color: arrowColor, family: "Arial", weight: "bold" },
+      showlegend: false,
+      hoverinfo: "skip"
+    });
+
+    return traces;
+};
+
+// Helper function for default arrow when calculation fails
+const createDefaultArrow = (baseX, baseY, baseZ, len, color, width) => {
+    console.log("Creating default arrow");
+    const traces = [];
+    
+    traces.push({
+      type: "scatter3d",
+      mode: "lines+text",
+      x: [baseX, baseX],
+      y: [baseY, baseY + len],
+      z: [baseZ, baseZ],
+      line: { color: color, width: width },
+      text: ["", "N?"],
+      textposition: "top center",
+      textfont: { size: 24, color: color, weight: "bold" },
+      showlegend: false,
+      hoverinfo: "text",
+      hovertext: "North Direction (Default - No Orientation Data)",
+      name: "North"
+    });
+    
+    return traces;
+};
+
+
+
 
   const createCubeOutline = () => {
     if (!cubeInfo) return [];
@@ -317,7 +496,6 @@ const SeismicViewer = () => {
     const xlineCoords = data.coordinates.x;
     const sampleCoords = data.coordinates.y;
 
-    
     if (sliceMatrix.length === xlineCoords.length && sliceMatrix[0].length === sampleCoords.length) {
       sliceMatrix = sliceMatrix[0].map((_, colIndex) => sliceMatrix.map(row => row[colIndex]));
     }
@@ -338,12 +516,10 @@ const SeismicViewer = () => {
         yRow.push(xlineCoords[j]);
         zRow.push(sampleCoords[i]);
         
-        
         let amplitude = -0.999;
         if (sliceMatrix[i] && sliceMatrix[i][j] !== undefined && sliceMatrix[i][j] !== null) {
           amplitude = Number(sliceMatrix[i][j]);
         }
-        
         
         const hoverString = `INLINE Slice\nINLINE: ${inlineVal}\nXLINE: ${xlineCoords[j]}\nSample: ${sampleCoords[i].toFixed(2)}\nAmplitude: ${amplitude.toFixed(6)}`;
         textRow.push(hoverString);
@@ -403,7 +579,6 @@ const SeismicViewer = () => {
     const inlineCoords = data.coordinates.x;
     const sampleCoords = data.coordinates.y;
 
-   
     if (sliceMatrix.length === inlineCoords.length && sliceMatrix[0].length === sampleCoords.length) {
       sliceMatrix = sliceMatrix[0].map((_, colIndex) => sliceMatrix.map(row => row[colIndex]));
     }
@@ -424,12 +599,10 @@ const SeismicViewer = () => {
         yRow.push(xlineVal);
         zRow.push(sampleCoords[i]);
         
-        
         let amplitude = -0.999;
         if (sliceMatrix[i] && sliceMatrix[i][j] !== undefined && sliceMatrix[i][j] !== null) {
           amplitude = Number(sliceMatrix[i][j]);
         }
-        
         
         const hoverString = `XLINE Slice\nINLINE: ${inlineCoords[j]}\nXLINE: ${xlineVal}\nSample: ${sampleCoords[i].toFixed(2)}\nAmplitude: ${amplitude.toFixed(6)}`;
         textRow.push(hoverString);
@@ -491,7 +664,6 @@ const SeismicViewer = () => {
     const inlineCoords = data.coordinates.x;
     const xlineCoords = data.coordinates.y;
 
-    
     if (sliceMatrix.length === xlineCoords.length && sliceMatrix[0].length === inlineCoords.length) {
       sliceMatrix = sliceMatrix[0].map((_, colIndex) => sliceMatrix.map(row => row[colIndex]));
     }
@@ -512,12 +684,10 @@ const SeismicViewer = () => {
         yRow.push(xlineCoords[j]);
         zRow.push(sampleVal);
         
-        
         let amplitude = -0.999;
         if (sliceMatrix[i] && sliceMatrix[i][j] !== undefined && sliceMatrix[i][j] !== null) {
           amplitude = Number(sliceMatrix[i][j]);
         }
-        
         
         const hoverString = `Sample Slice\nINLINE: ${inlineCoords[i]}\nXLINE: ${xlineCoords[j]}\nSample: ${sampleVal.toFixed(2)}\nAmplitude: ${amplitude.toFixed(6)}`;
         textRow.push(hoverString);
@@ -576,162 +746,10 @@ const SeismicViewer = () => {
     };
   };
 
-  
-  const renderCompass = () => {
-    if (!cubeInfo) return null;
-    
-    return (
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        right: '20px',
-        width: '160px',
-        height: '160px',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        border: '3px solid #333',
-        borderRadius: '12px',
-        padding: '12px',
-        boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
-        zIndex: 1000
-      }}>
-        <div style={{ 
-          textAlign: 'center', 
-          marginBottom: '8px', 
-          fontWeight: 'bold', 
-          fontSize: '13px', 
-          color: '#333',
-          letterSpacing: '1px'
-        }}>
-          ORIENTATION
-        </div>
-        <div style={{ position: 'relative', width: '135px', height: '135px', margin: '0 auto' }}>
-          <svg width="135" height="135" style={{ position: 'absolute', top: 0, left: 0 }}>
-            
-            <circle cx="67.5" cy="67.5" r="66" fill="rgba(245,245,245,0.9)" stroke="#555" strokeWidth="2.5"/>
-            
-            
-            <circle cx="67.5" cy="67.5" r="52" fill="none" stroke="#ddd" strokeWidth="1"/>
-            <circle cx="67.5" cy="67.5" r="38" fill="none" stroke="#ddd" strokeWidth="1"/>
-            <circle cx="67.5" cy="67.5" r="24" fill="none" stroke="#ddd" strokeWidth="1"/>
-            
-            
-            <line x1="67.5" y1="3" x2="67.5" y2="13" stroke="#999" strokeWidth="2.5"/>
-            <line x1="67.5" y1="122" x2="67.5" y2="132" stroke="#999" strokeWidth="2.5"/>
-            <line x1="3" y1="67.5" x2="13" y2="67.5" stroke="#999" strokeWidth="2.5"/>
-            <line x1="122" y1="67.5" x2="132" y2="67.5" stroke="#999" strokeWidth="2.5"/>
-            
-            
-            <circle cx="67.5" cy="67.5" r="4" fill="#333"/>
-            
-            
-            <g transform={`rotate(${-compassRotation.il} 67.5 67.5)`}>
-              <line x1="67.5" y1="67.5" x2="67.5" y2="20" stroke="rgb(255,0,0)" strokeWidth="6" strokeLinecap="round"/>
-              <polygon points="67.5,15 61,27 74,27" fill="rgb(255,0,0)"/>
-              <line x1="67.5" y1="67.5" x2="67.5" y2="115" stroke="rgba(255,0,0,0.25)" strokeWidth="4" strokeDasharray="4,4"/>
-            </g>
-            
-          
-            <g transform={`rotate(${-compassRotation.xl} 67.5 67.5)`}>
-              <line x1="67.5" y1="67.5" x2="67.5" y2="20" stroke="rgb(0,200,0)" strokeWidth="6" strokeLinecap="round"/>
-              <polygon points="67.5,15 61,27 74,27" fill="rgb(0,200,0)"/>
-              <line x1="67.5" y1="67.5" x2="67.5" y2="115" stroke="rgba(0,200,0,0.25)" strokeWidth="4" strokeDasharray="4,4"/>
-            </g>
-            
-            
-            <g>
-              {compassRotation.s > 0 ? (
-                
-                <>
-                  <circle cx="67.5" cy="67.5" r="10" fill="rgba(0,100,255,0.15)" stroke="rgb(0,100,255)" strokeWidth="2.5"/>
-                  <line x1="67.5" y1="67.5" x2="67.5" y2="57.5" stroke="rgb(0,100,255)" strokeWidth="4" strokeLinecap="round"/>
-                  <polygon points="67.5,54 63,60 72,60" fill="rgb(0,100,255)"/>
-                </>
-              ) : (
-                
-                <>
-                  <circle cx="67.5" cy="67.5" r="10" fill="rgba(0,100,255,0.1)" stroke="rgb(0,100,255)" strokeWidth="2.5" strokeDasharray="3,3"/>
-                  <line x1="67.5" y1="67.5" x2="67.5" y2="77.5" stroke="rgb(0,100,255)" strokeWidth="4" strokeLinecap="round"/>
-                  <polygon points="67.5,81 63,75 72,75" fill="rgb(0,100,255)"/>
-                </>
-              )}
-            </g>
-          </svg>
-          
-          
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: `translate(-50%, -50%) rotate(${compassRotation.il}deg) translateY(-53px)`,
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: 'rgb(255,0,0)',
-            textShadow: '1px 1px 2px white, -1px -1px 2px white',
-            pointerEvents: 'none',
-            backgroundColor: 'rgba(255,255,255,0.7)',
-            padding: '2px 6px',
-            borderRadius: '4px'
-          }}>
-            INLINE
-          </div>
-          
-         
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: `translate(-50%, -50%) rotate(${compassRotation.xl}deg) translateY(-53px)`,
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: 'rgb(0,200,0)',
-            textShadow: '1px 1px 2px white, -1px -1px 2px white',
-            pointerEvents: 'none',
-            backgroundColor: 'rgba(255,255,255,0.7)',
-            padding: '2px 6px',
-            borderRadius: '4px'
-          }}>
-            XLINE
-          </div>
-          
-         
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            fontSize: '11px',
-            fontWeight: 'bold',
-            color: 'rgb(0,100,255)',
-            textShadow: '1px 1px 2px white',
-            pointerEvents: 'none',
-            marginTop: compassRotation.s > 0 ? '-25px' : '25px'
-          }}>
-            SAMPLE
-          </div>
-          
-          
-          <div style={{
-            position: 'absolute',
-            bottom: '-28px',
-            left: '0',
-            right: '0',
-            textAlign: 'center',
-            fontSize: '10px',
-            color: '#555',
-            fontWeight: 'bold'
-          }}>
-            {compassRotation.s > 0 ? '↑ View from Top' : '↓ View from Bottom'}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   useEffect(() => {
     create3DVisualization();
   }, [create3DVisualization]);
 
-  
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -911,7 +929,6 @@ const SeismicViewer = () => {
               </div>
             </div>
 
-            {/* Amplitude Range Display */}
             {cubeInfo && cubeInfo.amplitude_range && (
               <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e8f4f8', borderRadius: '6px' }}>
                 <h4 style={{ color: '#2c3e50', margin: '0 0 10px 0' }}>Amplitude Statistics</h4>
@@ -941,8 +958,6 @@ const SeismicViewer = () => {
                 backgroundColor: 'white'
               }}
             />
-
-            {renderCompass()}
 
             <div style={{
               backgroundColor: '#f8f9fa',
