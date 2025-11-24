@@ -18,6 +18,8 @@ const SeismicViewer = () => {
   });
   const [sliceData, setSliceData] = useState({});
   const [isLoadingSlice, setIsLoadingSlice] = useState(false);
+  const [compassRotation, setCompassRotation] = useState(0);
+  const [backgroundColor, setBackgroundColor] = useState('white');
   const plotDiv = useRef(null);
   const debounceTimerRef = useRef(null);
 
@@ -116,24 +118,36 @@ const SeismicViewer = () => {
     }
   };
 
-  const handleSliceChange = (sliceType, index) => {
-    const newIndices = { ...sliceIndices, [sliceType]: index };
-    setSliceIndices(newIndices);
+const handleSliceChange = async (sliceType, index) => {
+  // Update UI immediately
+  setSliceIndices(prev => ({
+    ...prev,
+    [sliceType]: index
+  }));
 
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
+  // Load data immediately without debounce
+  try {
+    const response = await fetch(`${API_BASE_URL}/slice/${sliceType}/${index}`);
+    if (response.ok) {
+      const data = await response.json();
+      setSliceData(prev => ({
+        ...prev,
+        [sliceType]: data
+      }));
     }
-
-    debounceTimerRef.current = setTimeout(() => {
-      loadSliceData(newIndices);
-    }, 150);
-  };
-
+  } catch (err) {
+    console.error(`Failed to load ${sliceType} slice:`, err);
+  }
+};
   const handleVisibilityChange = (sliceType) => {
     setSliceVisibility(prev => ({
       ...prev,
       [sliceType]: !prev[sliceType]
     }));
+  };
+
+  const handleBackgroundChange = (color) => {
+    setBackgroundColor(color);
   };
 
 const create3DVisualization = useCallback(() => {
@@ -175,57 +189,62 @@ const create3DVisualization = useCallback(() => {
         `XLINE: ${cubeInfo.xline_range.min + sliceIndices.xline} | ` +
         `Sample: ${(cubeInfo.sample_range.min + sliceIndices.sample * (cubeInfo.sample_range.max - cubeInfo.sample_range.min) / (cubeInfo.sample_range.count - 1)).toFixed(1)}</sub>`,
       x: 0.5,
-      font: { size: 16 }
+      font: { size: 16, color: backgroundColor === 'black' ? '#ffffff' : '#000000' }
     },
-    scene: {
-      xaxis: {
-        title: 'INLINE',
-        backgroundcolor: "rgba(240,240,240,0.1)",
-        gridcolor: "rgba(150,150,150,0.3)",
-        showbackground: true,
-        titlefont: { size: 14 },
-        range: [
-          cubeInfo.inline_range.min - (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.05,
-          cubeInfo.inline_range.max + (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.20
-        ]
-      },
-      yaxis: {
-        title: 'XLINE (↑ North)',
-        backgroundcolor: "rgba(240,240,240,0.1)",
-        gridcolor: "rgba(150,150,150,0.3)",
-        showbackground: true,
-        titlefont: { size: 14 },
-        range: [
-          cubeInfo.xline_range.min - (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.05,
-          cubeInfo.xline_range.max + (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.15
-        ]
-      },
-      zaxis: {
-        title: 'Sample (Time/Depth)',
-        backgroundcolor: "rgba(240,240,240,0.1)",
-        gridcolor: "rgba(150,150,150,0.3)",
-        showbackground: true,
-        titlefont: { size: 14 },
-        range: [cubeInfo.sample_range.max, cubeInfo.sample_range.min],
-        autorange: 'reversed'
-      },
-      bgcolor: "rgba(255,255,255,0.1)",
-      camera: {
-        eye: { x: 1.6, y: 1.6, z: 1.4 },
-        center: { x: 0, y: 0, z: 0 }
-      },
-      aspectmode: 'manual',
-      aspectratio: {
-        x: 1.1,
-        y: 1.1,
-        z: 0.8
-      }
-    },
+   scene: {
+  xaxis: {
+    title: 'INLINE',
+    backgroundcolor: backgroundColor === 'black' ? "rgba(40,40,40,0.5)" : "rgba(240,240,240,0.1)",
+    gridcolor: backgroundColor === 'black' ? "rgba(200,200,200,0.3)" : "rgba(150,150,150,0.3)",
+    showbackground: true,
+    titlefont: { size: 14, color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
+    tickfont: { color: backgroundColor === 'black' ? '#ffffff' : '#000000' }, // ADD THIS LINE
+    range: [
+      cubeInfo.inline_range.min - (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.05,
+      cubeInfo.inline_range.max + (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.20
+    ]
+  },
+  yaxis: {
+    title: 'XLINE (↑ North)',
+    backgroundcolor: backgroundColor === 'black' ? "rgba(40,40,40,0.5)" : "rgba(240,240,240,0.1)",
+    gridcolor: backgroundColor === 'black' ? "rgba(200,200,200,0.3)" : "rgba(150,150,150,0.3)",
+    showbackground: true,
+    titlefont: { size: 14, color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
+    tickfont: { color: backgroundColor === 'black' ? '#ffffff' : '#000000' }, // ADD THIS LINE
+    range: [
+      cubeInfo.xline_range.min - (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.05,
+      cubeInfo.xline_range.max + (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.15
+    ]
+  },
+  zaxis: {
+    title: 'Sample (Time/Depth)',
+    backgroundcolor: backgroundColor === 'black' ? "rgba(40,40,40,0.5)" : "rgba(240,240,240,0.1)",
+    gridcolor: backgroundColor === 'black' ? "rgba(200,200,200,0.3)" : "rgba(150,150,150,0.3)",
+    showbackground: true,
+    titlefont: { size: 14, color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
+    tickfont: { color: backgroundColor === 'black' ? '#ffffff' : '#000000' }, // ADD THIS LINE
+    range: [cubeInfo.sample_range.max, cubeInfo.sample_range.min],
+    autorange: 'reversed'
+  },
+  bgcolor: backgroundColor === 'black' ? "rgba(20,20,20,1)" : "rgba(255,255,255,0.1)",
+  camera: {
+    eye: { x: 1.6, y: 1.6, z: 1.4 },
+    center: { x: 0, y: 0, z: 0 }
+  },
+  aspectmode: 'manual',
+  aspectratio: {
+    x: 1.1,
+    y: 1.1,
+    z: 0.8
+  }
+},
     width: 1000,
     height: 700,
     margin: { r: 50, b: 10, l: 10, t: 60 },
     dragmode: 'orbit',
-    showlegend: false
+    showlegend: false,
+    paper_bgcolor: backgroundColor === 'black' ? '#000000' : '#ffffff',
+    plot_bgcolor: backgroundColor === 'black' ? '#000000' : '#ffffff'
   };
 
   if (plotDiv.current) {
@@ -233,215 +252,57 @@ const create3DVisualization = useCallback(() => {
       displayModeBar: true,
       modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d'],
       responsive: true
+    }).then(() => {
+      // Function to update compass rotation
+      const updateCompass = () => {
+        if (plotDiv.current && plotDiv.current.layout && plotDiv.current.layout.scene) {
+          const camera = plotDiv.current.layout.scene.camera;
+          if (camera && camera.eye) {
+            const angle = Math.atan2(camera.eye.x, camera.eye.y) * (180 / Math.PI);
+            setCompassRotation(angle);
+          }
+        }
+      };
+
+      // Initial compass update
+      updateCompass();
+
+      // Listen to all camera events
+      plotDiv.current.on('plotly_relayout', (eventData) => {
+        if (eventData['scene.camera'] || eventData['scene.camera.eye']) {
+          setTimeout(updateCompass, 50);
+        }
+      });
+
+      // Listen to animations (home button)
+      plotDiv.current.on('plotly_animated', () => {
+        setTimeout(updateCompass, 100);
+      });
+
+      // Polling fallback for home button (most reliable)
+      let lastEye = null;
+      const pollInterval = setInterval(() => {
+        if (plotDiv.current && plotDiv.current.layout && plotDiv.current.layout.scene) {
+          const camera = plotDiv.current.layout.scene.camera;
+          if (camera && camera.eye) {
+            const currentEye = JSON.stringify(camera.eye);
+            if (currentEye !== lastEye) {
+              lastEye = currentEye;
+              updateCompass();
+            }
+          }
+        }
+      }, 100);
+
+      // Cleanup polling when component unmounts
+      return () => clearInterval(pollInterval);
     });
   }
-}, [cubeInfo, sliceData, sliceVisibility, sliceIndices]);
-
-const createDirectionArrows = () => {
-    console.log("=== CREATING DIRECTION ARROWS ===");
-    
-    if (!cubeInfo) {
-      console.log("No cubeInfo available");
-      return [];
-    }
-    
-    if (!cubeInfo.orientation) {
-      console.log("No orientation data available");
-      return [];
-    }
-
-    const { inline_range, xline_range, sample_range, orientation } = cubeInfo;
-
-    // Get orientation info from backend
-    const xlineVector = orientation.xline_vector || [0, 1];
-    const inlineVector = orientation.inline_vector || [1, 0];
-    const hasCoordinates = orientation.has_coordinates;
-    const azimuthXline = orientation.azimuth_xline || 0;
-    const azimuthInline = orientation.azimuth_inline || 90;
-
-    console.log("=== ORIENTATION DEBUG ===");
-    console.log("Inline Vector (real-world):", inlineVector);
-    console.log("Xline Vector (real-world):", xlineVector);
-    console.log("Inline Azimuth:", azimuthInline, "°");
-    console.log("Xline Azimuth:", azimuthXline, "°");
-    console.log("Has Coordinates:", hasCoordinates);
-
-    // Calculate dimensions
-    const xLength = inline_range.max - inline_range.min;
-    const yLength = xline_range.max - xline_range.min;
-    
-    // Position: Upper right corner - OUTSIDE the cube
-    const arrowBaseX = inline_range.max + xLength * 0.12;
-    const arrowBaseY = xline_range.max + yLength * 0.08;
-    const arrowZ = sample_range.min - (sample_range.max - sample_range.min) * 0.05;
-
-    // Arrow styling
-    const arrowLen = Math.min(xLength, yLength) * 0.20;
-    const arrowColor = hasCoordinates ? "#FF0000" : "#FFA500";
-    const arrowWidth = 10;
-
-    const traces = [];
-
-    // Transform North direction to plot coordinates
-    const north_real = [0, 1]; // North in real-world coords
-    
-    // Solve: North_realworld = a * inlineVector + b * xlineVector
-    const det = inlineVector[0] * xlineVector[1] - inlineVector[1] * xlineVector[0];
-    
-    console.log("Determinant:", det);
-    
-    if (Math.abs(det) < 0.0001) {
-      console.warn("Vectors are parallel or nearly parallel, using default orientation");
-      return createDefaultArrow(arrowBaseX, arrowBaseY, arrowZ, arrowLen, arrowColor, arrowWidth);
-    }
-    
-    // Solve for a and b using Cramer's rule
-    const a = (north_real[0] * xlineVector[1] - north_real[1] * xlineVector[0]) / det;
-    const b = (inlineVector[0] * north_real[1] - inlineVector[1] * north_real[0]) / det;
-    
-    console.log("North decomposition: a =", a.toFixed(4), "b =", b.toFixed(4));
-    console.log("This means: North = " + a.toFixed(4) + " × Inline + " + b.toFixed(4) + " × Xline");
-    
-    // Normalize the plot direction
-    const northPlotLength = Math.sqrt(a*a + b*b);
-    const northPlotX = a / northPlotLength;
-    const northPlotY = b / northPlotLength;
-    
-    console.log("Normalized plot North: [", northPlotX.toFixed(4), ",", northPlotY.toFixed(4), "]");
-    console.log("=== END ORIENTATION DEBUG ===");
-    
-    // Calculate arrow tip position in plot coordinates
-    const arrowTipX = arrowBaseX + northPlotX * arrowLen;
-    const arrowTipY = arrowBaseY + northPlotY * arrowLen;
-
-    // North Arrow shaft
-    traces.push({
-      type: "scatter3d",
-      mode: "lines+text",
-      x: [arrowBaseX, arrowTipX, arrowTipX],
-      y: [arrowBaseY, arrowTipY, arrowTipY],
-      z: [arrowZ, arrowZ, arrowZ],
-      line: { color: arrowColor, width: arrowWidth },
-      text: ["", "", "N"],
-      textposition: "top center",
-      textfont: { 
-        size: 26, 
-        color: arrowColor, 
-        family: "Arial Black, sans-serif",
-        weight: "bold"
-      },
-      showlegend: false,
-      hoverinfo: "text",
-      hovertext: `<b>North Direction</b><br>` +
-                 `Azimuth: ${azimuthXline.toFixed(1)}°<br>` + 
-                 `Plot vector: [${northPlotX.toFixed(3)}, ${northPlotY.toFixed(3)}]<br>` +
-                 `Real-world Inline: [${inlineVector[0].toFixed(4)}, ${inlineVector[1].toFixed(4)}]<br>` +
-                 `Real-world Xline: [${xlineVector[0].toFixed(4)}, ${xlineVector[1].toFixed(4)}]<br>` +
-                 `Source: ${hasCoordinates ? 'CDP Coordinates' : 'Assumed Grid'}`,
-      name: "North"
-    });
-
-    // Arrow head (larger and more visible)
-    const headSize = arrowLen * 0.25;
-    const perpX = -northPlotY;
-    const perpY = northPlotX;
-    
-    const leftWingX = arrowTipX - northPlotX * headSize + perpX * headSize * 0.35;
-    const leftWingY = arrowTipY - northPlotY * headSize + perpY * headSize * 0.35;
-    
-    traces.push({
-      type: "scatter3d",
-      mode: "lines",
-      x: [leftWingX, arrowTipX],
-      y: [leftWingY, arrowTipY],
-      z: [arrowZ, arrowZ],
-      line: { color: arrowColor, width: arrowWidth },
-      showlegend: false,
-      hoverinfo: "skip"
-    });
-
-    const rightWingX = arrowTipX - northPlotX * headSize - perpX * headSize * 0.35;
-    const rightWingY = arrowTipY - northPlotY * headSize - perpY * headSize * 0.35;
-    
-    traces.push({
-      type: "scatter3d",
-      mode: "lines",
-      x: [rightWingX, arrowTipX],
-      y: [rightWingY, arrowTipY],
-      z: [arrowZ, arrowZ],
-      line: { color: arrowColor, width: arrowWidth },
-      showlegend: false,
-      hoverinfo: "skip"
-    });
-
-    // Compass rose circle (larger)
-    const circlePoints = 48;
-    const circleRadius = arrowLen * 0.75;
-    const circleX = [];
-    const circleY = [];
-    const circleZ = [];
-    
-    for (let i = 0; i <= circlePoints; i++) {
-      const angle = (i / circlePoints) * 2 * Math.PI;
-      circleX.push(arrowBaseX + Math.cos(angle) * circleRadius);
-      circleY.push(arrowBaseY + Math.sin(angle) * circleRadius);
-      circleZ.push(arrowZ);
-    }
-    
-    traces.push({
-      type: "scatter3d",
-      mode: "lines",
-      x: circleX,
-      y: circleY,
-      z: circleZ,
-      line: { color: arrowColor, width: 3 },
-      showlegend: false,
-      hoverinfo: "skip",
-      opacity: 0.6
-    });
-
-    // Azimuth text (larger and below arrow)
-    traces.push({
-      type: "scatter3d",
-      mode: "text",
-      x: [arrowBaseX],
-      y: [arrowBaseY - arrowLen * 0.9],
-      z: [arrowZ],
-      text: [`${azimuthXline.toFixed(1)}°`],
-      textfont: { size: 14, color: arrowColor, family: "Arial", weight: "bold" },
-      showlegend: false,
-      hoverinfo: "skip"
-    });
-
-    return traces;
-};
-
-// Helper function for default arrow when calculation fails
-const createDefaultArrow = (baseX, baseY, baseZ, len, color, width) => {
-    console.log("Creating default arrow");
-    const traces = [];
-    
-    traces.push({
-      type: "scatter3d",
-      mode: "lines+text",
-      x: [baseX, baseX],
-      y: [baseY, baseY + len],
-      z: [baseZ, baseZ],
-      line: { color: color, width: width },
-      text: ["", "N?"],
-      textposition: "top center",
-      textfont: { size: 24, color: color, weight: "bold" },
-      showlegend: false,
-      hoverinfo: "text",
-      hovertext: "North Direction (Default - No Orientation Data)",
-      name: "North"
-    });
-    
-    return traces;
-};
-
-
-
+}, [cubeInfo, sliceData, sliceVisibility, sliceIndices, backgroundColor]);
+  const createDirectionArrows = () => {
+    // Return empty - compass is now a 2D overlay
+    return [];
+  };
 
   const createCubeOutline = () => {
     if (!cubeInfo) return [];
@@ -474,7 +335,7 @@ const createDefaultArrow = (baseX, baseY, baseZ, len, color, width) => {
         y: [start[1], end[1], null],
         z: [start[2], end[2], null],
         mode: 'lines',
-        line: { color: 'rgba(100,100,100,0.8)', width: 4 },
+        line: { color: backgroundColor === 'black' ? 'rgba(200,200,200,0.8)' : 'rgba(100,100,100,0.8)', width: 4 },
         showlegend: false,
         hoverinfo: 'skip',
         name: `outline_${index}`
@@ -757,6 +618,21 @@ const createDefaultArrow = (baseX, baseY, baseZ, len, color, width) => {
       }
     };
   }, []);
+   useEffect(() => {
+    if (!plotDiv.current) return;
+
+    const checkCameraInterval = setInterval(() => {
+      if (plotDiv.current && plotDiv.current.layout && plotDiv.current.layout.scene && plotDiv.current.layout.scene.camera) {
+        const camera = plotDiv.current.layout.scene.camera;
+        if (camera.eye) {
+          const angle = Math.atan2(camera.eye.x, camera.eye.y) * (180 / Math.PI);
+          setCompassRotation(angle);
+        }
+      }
+    }, 100);
+
+    return () => clearInterval(checkCameraInterval);
+  }, [cubeInfo]);
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', maxWidth: '1400px', margin: '0 auto', padding: '20px' }}>
@@ -929,6 +805,44 @@ const createDefaultArrow = (baseX, baseY, baseZ, len, color, width) => {
               </div>
             </div>
 
+            <div style={{ marginTop: '25px' }}>
+              <h4 style={{ color: '#34495e', marginBottom: '15px' }}>Background Color</h4>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => handleBackgroundChange('white')}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    backgroundColor: backgroundColor === 'white' ? '#3498db' : '#ecf0f1',
+                    color: backgroundColor === 'white' ? 'white' : '#2c3e50',
+                    border: '2px solid ' + (backgroundColor === 'white' ? '#3498db' : '#bdc3c7'),
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: backgroundColor === 'white' ? 'bold' : 'normal',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  White
+                </button>
+                <button
+                  onClick={() => handleBackgroundChange('black')}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    backgroundColor: backgroundColor === 'black' ? '#2c3e50' : '#ecf0f1',
+                    color: backgroundColor === 'black' ? 'white' : '#2c3e50',
+                    border: '2px solid ' + (backgroundColor === 'black' ? '#2c3e50' : '#bdc3c7'),
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: backgroundColor === 'black' ? 'bold' : 'normal',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Black
+                </button>
+              </div>
+            </div>
+
             {cubeInfo && cubeInfo.amplitude_range && (
               <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e8f4f8', borderRadius: '6px' }}>
                 <h4 style={{ color: '#2c3e50', margin: '0 0 10px 0' }}>Amplitude Statistics</h4>
@@ -955,9 +869,62 @@ const createDefaultArrow = (baseX, baseY, baseZ, len, color, width) => {
                 height: '700px',
                 border: '1px solid #ddd',
                 borderRadius: '8px',
-                backgroundColor: 'white'
+                backgroundColor: backgroundColor === 'black' ? '#000000' : 'white'
               }}
             />
+
+            {/* North Arrow Compass */}
+            <div style={{
+              position: 'absolute',
+              top: '20px',
+              right: '80px',
+              width: '80px',
+              height: '80px',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              border: '2px solid #333',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              zIndex: 1000
+            }}>
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                transform: `rotate(${compassRotation}deg)`,
+                transition: 'transform 0.3s ease'
+              }}>
+                {/* Compass circle markings */}
+                <svg width="80" height="80" style={{ position: 'absolute', top: 0, left: 0 }}>
+                  <circle cx="40" cy="40" r="35" fill="none" stroke="#ccc" strokeWidth="1"/>
+                  
+                  {/* North arrow (red) */}
+                  <path d="M 40 10 L 35 30 L 40 25 L 45 30 Z" fill="#FF0000" stroke="#CC0000" strokeWidth="1"/>
+                  
+                  {/* South arrow (white/gray) */}
+                  <path d="M 40 70 L 35 50 L 40 55 L 45 50 Z" fill="#CCCCCC" stroke="#999999" strokeWidth="1"/>
+                  
+                  {/* Center dot */}
+                  <circle cx="40" cy="40" r="3" fill="#333"/>
+                </svg>
+                
+                {/* N label (always upright) */}
+                <div style={{
+                  position: 'absolute',
+                  top: '2px',
+                  left: '50%',
+                  transform: `translateX(-50%) rotate(${-compassRotation}deg)`,
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: '#FF0000',
+                  fontFamily: 'Arial, sans-serif'
+                }}>
+                  N
+                </div>
+              </div>
+            </div>
 
             <div style={{
               backgroundColor: '#f8f9fa',
