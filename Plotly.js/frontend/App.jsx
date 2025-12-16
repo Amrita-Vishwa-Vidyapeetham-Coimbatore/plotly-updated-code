@@ -124,18 +124,17 @@ const SeismicViewer = () => {
   };
 
   const handleSliceChange = (sliceType, index) => {
-    // Immediately update the pending indices for smooth slider movement
     setPendingSliceIndices(prev => ({
       ...prev,
       [sliceType]: index
     }));
 
-    // Clear any existing debounce timer
+
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Debounce the actual data loading and plot update
+
     debounceTimerRef.current = setTimeout(async () => {
       setSliceIndices(prev => ({
         ...prev,
@@ -154,7 +153,7 @@ const SeismicViewer = () => {
       } catch (err) {
         console.error(`Failed to load ${sliceType} slice:`, err);
       }
-    }, 150); // 150ms debounce delay
+    }, 150);
   };
 
   const handleVisibilityChange = (sliceType) => {
@@ -168,28 +167,13 @@ const SeismicViewer = () => {
     setBackgroundColor(color);
   };
 
-  /**
-   * This is the critical function that calculates the correct compass rotation.
-   * The compass needs to show where North is in the current view as you rotate around the cube.
-   * 
-   * Key insight: The positive Z-axis direction represents North.
-   * As the camera moves around the cube, the compass needle must rotate to keep pointing
-   * toward the actual North direction (positive Z-axis).
-   */
   const updateCompass = useCallback(() => {
     if (plotDiv.current && plotDiv.current.layout && plotDiv.current.layout.scene) {
       const camera = plotDiv.current.layout.scene.camera;
       if (camera && camera.eye) {
-        // Z-axis represents North direction (increasing Z is North)
-        // Calculate azimuth angle in the X-Y horizontal plane
-        // We look at where the camera is positioned relative to the cube
         const cameraAzimuth = Math.atan2(camera.eye.y, camera.eye.x) * (180 / Math.PI);
 
-        // The compass arrow needs to point toward positive Z-axis (North)
-        // When camera is at positive X, we need to rotate compass to show North is toward +Z
-        // Subtract 90 degrees because when camera is at +X (azimuth = 0°), 
-        // North (+Z) is 90° counter-clockwise from the camera's right
-        const compassAngle = -cameraAzimuth + 90;
+        const compassAngle = -cameraAzimuth + 45;
 
         setCompassRotation(compassAngle);
       }
@@ -278,8 +262,8 @@ const SeismicViewer = () => {
           z: 0.8
         }
       },
-      width: 1000,
-      height: 700,
+      width: 1400,
+      height: 900,
       margin: { r: 50, b: 10, l: 10, t: 60 },
       dragmode: 'orbit',
       showlegend: false,
@@ -306,22 +290,18 @@ const SeismicViewer = () => {
         }],
         responsive: true
       }).then(() => {
-        // Update compass immediately after plot creation
+
         updateCompass();
 
-        // Listen to relayout events to update compass
+
         plotDiv.current.on('plotly_relayout', (eventData) => {
           setTimeout(updateCompass, 100);
         });
 
-        // Listen to animation events
         plotDiv.current.on('plotly_animated', () => {
           setTimeout(updateCompass, 100);
         });
 
-        // Continuous polling to catch any camera changes we might have missed
-        // This is especially important for the home button which doesn't always
-        // trigger the expected events reliably
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current);
         }
@@ -330,17 +310,15 @@ const SeismicViewer = () => {
           if (plotDiv.current && plotDiv.current.layout && plotDiv.current.layout.scene) {
             const camera = plotDiv.current.layout.scene.camera;
             if (camera && camera.eye) {
-              // Calculate what the compass SHOULD be (Z-axis = North)
               const cameraAzimuth = Math.atan2(camera.eye.y, camera.eye.x) * (180 / Math.PI);
-              const expectedCompassAngle = -cameraAzimuth + 90;
+              const expectedCompassAngle = -cameraAzimuth + 45;
 
-              // Update if it's different from current (with small tolerance for rounding)
               if (Math.abs(expectedCompassAngle - compassRotation) > 0.1) {
                 updateCompass();
               }
             }
           }
-        }, 50); // Poll every 50ms for faster response
+        }, 50);
       });
     }
   }, [cubeInfo, sliceData, sliceVisibility, sliceIndices, backgroundColor, updateCompass]);
@@ -741,21 +719,21 @@ const SeismicViewer = () => {
       )}
 
       {cubeInfo && !loading && (
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', justifyContent: 'center' }}>
           <div style={{
             backgroundColor: '#f8f9fa',
-            padding: '30px',
+            padding: '35px',
             borderRadius: '8px',
-            minWidth: '420px',
-            maxWidth: '450px'
+            minWidth: '600px',
+            maxWidth: '650px'
           }}>
-            <h3 style={{ color: '#2c3e50', marginBottom: '20px', fontSize: '26px', fontWeight: 'bold' }}>Control Panel</h3>
+            <h3 style={{ color: '#2c3e50', marginBottom: '20px', fontSize: '28px', fontWeight: 'bold' }}>Control Panel</h3>
 
             <div style={{ marginBottom: '25px' }}>
-              <h4 style={{ color: '#34495e', marginBottom: '15px', fontSize: '20px', fontWeight: '600' }}>Navigation</h4>
+              <h4 style={{ color: '#34495e', marginBottom: '15px', fontSize: '22px', fontWeight: '600' }}>Navigation</h4>
               <div>
                 <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '18px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '19px' }}>
                     INLINE: {cubeInfo.inline_range.min + pendingSliceIndices.inline}
                     {pendingSliceIndices.inline !== sliceIndices.inline && <span style={{ marginLeft: '8px', fontSize: '16px', color: '#3498db' }}>Loading...</span>}
                   </label>
@@ -770,7 +748,7 @@ const SeismicViewer = () => {
                 </div>
 
                 <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '18px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '19px' }}>
                     XLINE: {cubeInfo.xline_range.min + pendingSliceIndices.xline}
                     {pendingSliceIndices.xline !== sliceIndices.xline && <span style={{ marginLeft: '8px', fontSize: '16px', color: '#3498db' }}>Loading...</span>}
                   </label>
@@ -785,7 +763,7 @@ const SeismicViewer = () => {
                 </div>
 
                 <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '18px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '19px' }}>
                     Sample: {(cubeInfo.sample_range.min + pendingSliceIndices.sample * (cubeInfo.sample_range.max - cubeInfo.sample_range.min) / (cubeInfo.sample_range.count - 1)).toFixed(1)}
                     {pendingSliceIndices.sample !== sliceIndices.sample && <span style={{ marginLeft: '8px', fontSize: '16px', color: '#3498db' }}>Loading...</span>}
                   </label>
@@ -802,9 +780,9 @@ const SeismicViewer = () => {
             </div>
 
             <div>
-              <h4 style={{ color: '#34495e', marginBottom: '15px', fontSize: '20px', fontWeight: '600' }}>Slice Visibility</h4>
+              <h4 style={{ color: '#34495e', marginBottom: '15px', fontSize: '22px', fontWeight: '600' }}>Slice Visibility</h4>
               <div>
-                <label style={{ display: 'block', marginBottom: '10px', fontSize: '17px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontSize: '18px' }}>
                   <input
                     type="checkbox"
                     checked={sliceVisibility.inline}
@@ -813,7 +791,7 @@ const SeismicViewer = () => {
                   />
                   INLINE Slice
                 </label>
-                <label style={{ display: 'block', marginBottom: '10px', fontSize: '17px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontSize: '18px' }}>
                   <input
                     type="checkbox"
                     checked={sliceVisibility.xline}
@@ -822,7 +800,7 @@ const SeismicViewer = () => {
                   />
                   XLINE Slice
                 </label>
-                <label style={{ display: 'block', marginBottom: '10px', fontSize: '17px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontSize: '18px' }}>
                   <input
                     type="checkbox"
                     checked={sliceVisibility.sample}
@@ -835,7 +813,7 @@ const SeismicViewer = () => {
             </div>
 
             <div style={{ marginTop: '25px' }}>
-              <h4 style={{ color: '#34495e', marginBottom: '15px', fontSize: '20px', fontWeight: '600' }}>Background Color</h4>
+              <h4 style={{ color: '#34495e', marginBottom: '15px', fontSize: '22px', fontWeight: '600' }}>Background Color</h4>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   onClick={() => handleBackgroundChange('white')}
@@ -848,7 +826,7 @@ const SeismicViewer = () => {
                     borderRadius: '6px',
                     cursor: 'pointer',
                     fontWeight: backgroundColor === 'white' ? 'bold' : 'normal',
-                    fontSize: '18px',
+                    fontSize: '19px',
                     transition: 'all 0.3s ease'
                   }}
                 >
@@ -865,7 +843,7 @@ const SeismicViewer = () => {
                     borderRadius: '6px',
                     cursor: 'pointer',
                     fontWeight: backgroundColor === 'black' ? 'bold' : 'normal',
-                    fontSize: '18px',
+                    fontSize: '19px',
                     transition: 'all 0.3s ease'
                   }}
                 >
@@ -876,8 +854,8 @@ const SeismicViewer = () => {
 
             {cubeInfo && cubeInfo.amplitude_range && (
               <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e8f4f8', borderRadius: '6px' }}>
-                <h4 style={{ color: '#2c3e50', margin: '0 0 10px 0', fontSize: '20px', fontWeight: '600' }}>Amplitude Statistics</h4>
-                <div style={{ fontSize: '16px', color: '#34495e' }}>
+                <h4 style={{ color: '#2c3e50', margin: '0 0 10px 0', fontSize: '22px', fontWeight: '600' }}>Amplitude Statistics</h4>
+                <div style={{ fontSize: '17px', color: '#34495e' }}>
                   <div style={{ marginTop: '8px' }}><strong>Actual Range:</strong></div>
                   <div>Min: {cubeInfo.amplitude_range.actual_min?.toFixed(6) || 'N/A'}</div>
                   <div>Max: {cubeInfo.amplitude_range.actual_max?.toFixed(6) || 'N/A'}</div>
@@ -892,32 +870,27 @@ const SeismicViewer = () => {
             )}
           </div>
 
-          <div style={{ flex: 1, minWidth: '800px', position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: '1000px', position: 'relative' }}>
             <div
               ref={plotDiv}
               style={{
                 width: '100%',
-                height: '700px',
+                height: '900px',
                 border: '1px solid #ddd',
                 borderRadius: '8px',
                 backgroundColor: backgroundColor === 'black' ? '#000000' : 'white'
               }}
             />
 
-            {/* North Arrow Compass - This overlay always shows the correct North direction */}
             <div style={{
               position: 'absolute',
               top: '60px',
-              right: '80px',
+              right: '-160px',
               width: '80px',
               height: '80px',
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              border: '2px solid #333',
-              borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
               zIndex: 1000
             }}>
               <div style={{
@@ -928,7 +901,6 @@ const SeismicViewer = () => {
                 transition: 'transform 0.3s ease'
               }}>
                 <svg width="80" height="80" style={{ position: 'absolute', top: 0, left: 0 }}>
-                  <circle cx="40" cy="40" r="35" fill="none" stroke="#ccc" strokeWidth="1" />
 
                   <path d="M 40 10 L 35 30 L 40 25 L 45 30 Z" fill="#FF0000" stroke="#CC0000" strokeWidth="1" />
 
@@ -939,7 +911,7 @@ const SeismicViewer = () => {
 
                 <div style={{
                   position: 'absolute',
-                  top: '2px',
+                  top: '-8px',
                   left: '50%',
                   transform: `translateX(-50%) rotate(${-compassRotation}deg)`,
                   fontSize: '14px',
