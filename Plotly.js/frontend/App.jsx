@@ -896,15 +896,17 @@ const SeismicViewer = () => {
               <div style={{
                 position: 'relative',
                 width: '100%',
-                height: '100%',
-                transform: `rotate(${compassRotation}deg)`,
-                transition: 'transform 0.3s ease'
+                height: '100%'
               }}>
-                <svg width="80" height="80" style={{ position: 'absolute', top: 0, left: 0 }}>
+                <svg width="80" height="80" style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  transform: `rotate(${compassRotation}deg)`,
+                  transition: 'transform 0.3s ease'
+                }}>
 
                   <path d="M 40 10 L 35 30 L 40 25 L 45 30 Z" fill="#FF0000" stroke="#CC0000" strokeWidth="1" />
-
-                  <path d="M 40 70 L 35 50 L 40 55 L 45 50 Z" fill="#CCCCCC" stroke="#999999" strokeWidth="1" />
 
                   <circle cx="40" cy="40" r="3" fill="#333" />
                 </svg>
@@ -913,7 +915,7 @@ const SeismicViewer = () => {
                   position: 'absolute',
                   top: '-8px',
                   left: '50%',
-                  transform: `translateX(-50%) rotate(${-compassRotation}deg)`,
+                  transform: 'translateX(-50%)',
                   fontSize: '14px',
                   fontWeight: 'bold',
                   color: '#FF0000',
