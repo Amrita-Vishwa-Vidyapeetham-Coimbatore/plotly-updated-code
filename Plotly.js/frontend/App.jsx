@@ -217,27 +217,27 @@ const SeismicViewer = () => {
       },
       scene: {
         xaxis: {
-          title: 'INLINE',
+          title: 'x',
           backgroundcolor: backgroundColor === 'black' ? "rgba(40,40,40,0.5)" : "rgba(240,240,240,0.1)",
           gridcolor: backgroundColor === 'black' ? "rgba(200,200,200,0.3)" : "rgba(150,150,150,0.3)",
           showbackground: true,
-          titlefont: { size: 14, color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
-          tickfont: { color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
-          range: [
-            cubeInfo.inline_range.min - (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.05,
-            cubeInfo.inline_range.max + (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.20
-          ]
-        },
-        yaxis: {
-          title: 'XLINE',
-          backgroundcolor: backgroundColor === 'black' ? "rgba(40,40,40,0.5)" : "rgba(240,240,240,0.1)",
-          gridcolor: backgroundColor === 'black' ? "rgba(200,200,200,0.3)" : "rgba(150,150,150,0.3)",
-          showbackground: true,
-          titlefont: { size: 14, color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
+          titlefont: { size: 24, color: backgroundColor === 'black' ? '#ffffff' : '#000000', family: 'Arial Black, sans-serif' },
           tickfont: { color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
           range: [
             cubeInfo.xline_range.min - (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.05,
             cubeInfo.xline_range.max + (cubeInfo.xline_range.max - cubeInfo.xline_range.min) * 0.15
+          ]
+        },
+        yaxis: {
+          title: 'y',
+          backgroundcolor: backgroundColor === 'black' ? "rgba(40,40,40,0.5)" : "rgba(240,240,240,0.1)",
+          gridcolor: backgroundColor === 'black' ? "rgba(200,200,200,0.3)" : "rgba(150,150,150,0.3)",
+          showbackground: true,
+          titlefont: { size: 24, color: backgroundColor === 'black' ? '#ffffff' : '#000000', family: 'Arial Black, sans-serif' },
+          tickfont: { color: backgroundColor === 'black' ? '#ffffff' : '#000000' },
+          range: [
+            cubeInfo.inline_range.min - (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.05,
+            cubeInfo.inline_range.max + (cubeInfo.inline_range.max - cubeInfo.inline_range.min) * 0.20
           ]
         },
         zaxis: {
@@ -329,14 +329,14 @@ const SeismicViewer = () => {
     const { inline_range, xline_range, sample_range } = cubeInfo;
 
     const vertices = [
-      [inline_range.min, xline_range.min, sample_range.min],
-      [inline_range.max, xline_range.min, sample_range.min],
-      [inline_range.max, xline_range.max, sample_range.min],
-      [inline_range.min, xline_range.max, sample_range.min],
-      [inline_range.min, xline_range.min, sample_range.max],
-      [inline_range.max, xline_range.min, sample_range.max],
-      [inline_range.max, xline_range.max, sample_range.max],
-      [inline_range.min, xline_range.max, sample_range.max]
+      [xline_range.min, inline_range.min, sample_range.min],
+      [xline_range.max, inline_range.min, sample_range.min],
+      [xline_range.max, inline_range.max, sample_range.min],
+      [xline_range.min, inline_range.max, sample_range.min],
+      [xline_range.min, inline_range.min, sample_range.max],
+      [xline_range.max, inline_range.min, sample_range.max],
+      [xline_range.max, inline_range.max, sample_range.max],
+      [xline_range.min, inline_range.max, sample_range.max]
     ];
 
     const edges = [
@@ -392,8 +392,8 @@ const SeismicViewer = () => {
       const textRow = [];
 
       for (let j = 0; j < xlineCoords.length; j++) {
-        xRow.push(inlineVal);
-        yRow.push(xlineCoords[j]);
+        xRow.push(xlineCoords[j]);
+        yRow.push(inlineVal);
         zRow.push(sampleCoords[i]);
 
         let amplitude = -0.999;
@@ -475,8 +475,8 @@ const SeismicViewer = () => {
       const textRow = [];
 
       for (let j = 0; j < inlineCoords.length; j++) {
-        xRow.push(inlineCoords[j]);
-        yRow.push(xlineVal);
+        xRow.push(xlineVal);
+        yRow.push(inlineCoords[j]);
         zRow.push(sampleCoords[i]);
 
         let amplitude = -0.999;
@@ -560,8 +560,8 @@ const SeismicViewer = () => {
       const textRow = [];
 
       for (let j = 0; j < xlineCoords.length; j++) {
-        xRow.push(inlineCoords[i]);
-        yRow.push(xlineCoords[j]);
+        xRow.push(xlineCoords[j]);
+        yRow.push(inlineCoords[i]);
         zRow.push(sampleVal);
 
         let amplitude = -0.999;
